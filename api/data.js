@@ -1,6 +1,6 @@
-import { redis, isAdmin } from '../lib/util.js';
+import { safe, redis, isAdmin } from '../lib/util.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (!isAdmin(req)) return res.status(401).json({ error: 'unauthorized' });
   const [events, bansFlat, players, shots] = await Promise.all([
     redis('LRANGE', 'events', 0, 199), redis('HGETALL', 'bans'), redis('GET', 'players'), redis('LRANGE', 'shots', 0, 49),
@@ -14,3 +14,5 @@ export default async function handler(req, res) {
     shots: (shots || []).map((s) => JSON.parse(s)),
   });
 }
+
+export default safe(handler);

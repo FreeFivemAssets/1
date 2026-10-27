@@ -1,6 +1,6 @@
-import { redis, isServer, clean } from '../lib/util.js';
+import { safe, redis, isServer, clean } from '../lib/util.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!isServer(req)) return res.status(401).json({ error: 'unauthorized' });
   const b = req.body || {};
@@ -13,3 +13,5 @@ export default async function handler(req, res) {
   await redis('LTRIM', 'shots', 0, 49);
   res.json({ ok: true });
 }
+
+export default safe(handler);

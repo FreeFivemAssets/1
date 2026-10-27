@@ -52,7 +52,7 @@ form{display:flex;gap:8px;flex-wrap:wrap}#login{max-width:340px;margin:12vh auto
 <div id="modal"></div>
 <script>
 const $ = s => document.querySelector(s);
-let pass = sessionStorage.getItem('pw') || '', timer;
+let pass = sessionStorage.getItem('pw') || '', timer, lastErr = '';
 const api = (path, opt = {}) => fetch(path, { ...opt, headers: { 'Content-Type': 'application/json', 'x-dash-pass': pass } });
 
 // All values go through textContent: player names are attacker-controlled.
@@ -84,9 +84,16 @@ async function view(sid) {
 $('#modal').onclick = () => { $('#modal').style.display = 'none'; };
 
 async function load() {
-  const r = await api('/api/data');
-  if (r.status === 401) { sessionStorage.removeItem('pw'); $('#app').style.display = 'none'; $('#login').style.display = ''; clearInterval(timer); return false; }
-  const d = await r.json();
+  let r, d;
+  try { r = await api('/api/data'); } catch (e) { lastErr = 'Cannot reach the server: ' + e.message; return false; }
+  if (r.status === 401) {
+    sessionStorage.removeItem('pw'); $('#app').style.display = 'none'; $('#login').style.display = ''; clearInterval(timer);
+    lastErr = 'Wrong password, or DASHBOARD_PASSWORD is not set / not redeployed. Check /api/health';
+    return false;
+  }
+  if (r.status === 404) { lastErr = 'API not found (404): Vercel did not deploy the api folder. Check Root Directory, then /api/health'; return false; }
+  try { d = await r.json(); } catch (e) { lastErr = 'Server error (' + r.status + '). Open /api/health to see what is missing.'; return false; }
+  if (!r.ok) { lastErr = d.error || ('Error ' + r.status); return false; }
   $('#login').style.display = 'none'; $('#app').style.display = 'block';
   $('#s1').textContent = d.events.length;
   $('#s2').textContent = d.events.filter(e => e.type === 'flag').length;
@@ -121,8 +128,8 @@ async function load() {
 function start() { load(); clearInterval(timer); timer = setInterval(load, 10000); }
 
 $('#lf').onsubmit = async e => {
-  e.preventDefault(); pass = $('#pw').value;
-  if (await load()) { sessionStorage.setItem('pw', pass); start(); } else $('#err').textContent = 'Wrong password.';
+  e.preventDefault(); pass = $('#pw').value.trim(); $('#err').textContent = 'Signing in…';
+  if (await load()) { sessionStorage.setItem('pw', pass); start(); } else $('#err').textContent = lastErr || 'Login failed.';
 };
 $('#mf').onsubmit = e => { e.preventDefault(); send('ban', $('#mid').value.trim(), $('#mr').value); };
 $('#kick').onclick = () => $('#mid').value && send('kick', $('#mid').value.trim(), $('#mr').value);

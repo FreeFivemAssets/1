@@ -1,6 +1,6 @@
-import { redis, isServer, clean } from '../lib/util.js';
+import { safe, redis, isServer, clean } from '../lib/util.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!isServer(req)) return res.status(401).json({ error: 'unauthorized' });
   const list = (Array.isArray(req.body?.players) ? req.body.players : []).slice(0, 300).map((p) => ({
@@ -10,3 +10,5 @@ export default async function handler(req, res) {
   await redis('SET', 'players', JSON.stringify(list), 'EX', 60); // disappears if server stops reporting
   res.json({ ok: true });
 }
+
+export default safe(handler);
