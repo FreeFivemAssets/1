@@ -21,6 +21,7 @@ th{color:var(--mut);font-weight:500}
 input,button{font:inherit;padding:8px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
 button{cursor:pointer;background:var(--ac);color:#fff;border:0}button.s{background:transparent;color:var(--ac);border:1px solid var(--ac);padding:4px 8px}
 form{display:flex;gap:8px;flex-wrap:wrap}#login{max-width:340px;margin:12vh auto}#app{display:none}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);align-items:center;justify-content:center;padding:20px;z-index:9;cursor:pointer}#modal img{max-width:100%;max-height:100%;border-radius:8px}
 </style>
 </head>
 <body>
@@ -43,9 +44,12 @@ form{display:flex;gap:8px;flex-wrap:wrap}#login{max-width:340px;margin:12vh auto
     <input id="mr" placeholder="Reason" size="24">
     <button>Ban</button><button type="button" class="s" id="kick">Kick</button></form>
     <p class="mut">Commands reach the game server within ~15 seconds.</p></div>
+  <div class="card"><h2>Online players</h2><div class="wrap"><table id="pt"></table></div></div>
+  <div class="card"><h2>Screenshots</h2><p class="mut">Taken automatically on flags and bans, or with the Screenshot button. Kept 7 days.</p><div class="wrap"><table id="sh"></table></div></div>
   <div class="card"><h2>Active bans</h2><div class="wrap"><table id="bt"></table></div></div>
   <div class="card"><h2>Recent events</h2><div class="wrap"><table id="et"></table></div></div>
 </main></div>
+<div id="modal"></div>
 <script>
 const $ = s => document.querySelector(s);
 let pass = sessionStorage.getItem('pw') || '', timer;
@@ -70,6 +74,15 @@ async function send(action, id, reason) {
   alert('Queued: ' + action + ' ' + id);
 }
 
+async function view(sid) {
+  const r = await api('/api/shot?sid=' + sid);
+  const d = await r.json();
+  if (!d.image || !d.image.startsWith('data:image/jpeg;base64,')) return alert('Screenshot expired or unavailable.');
+  const img = document.createElement('img'); img.src = d.image;
+  $('#modal').replaceChildren(img); $('#modal').style.display = 'flex';
+}
+$('#modal').onclick = () => { $('#modal').style.display = 'none'; };
+
 async function load() {
   const r = await api('/api/data');
   if (r.status === 401) { sessionStorage.removeItem('pw'); $('#app').style.display = 'none'; $('#login').style.display = ''; clearInterval(timer); return false; }
@@ -79,6 +92,23 @@ async function load() {
   $('#s2').textContent = d.events.filter(e => e.type === 'flag').length;
   $('#s3').textContent = d.bans.length;
   $('#s4').textContent = d.bans.filter(b => Date.now() - b.t < 864e5).length;
+  fill($('#pt'), ['ID', 'Name', 'Identifier', 'Strikes', 'Ping', ''], (d.players || []).map(p => {
+    const w = document.createElement('span');
+    [['Screenshot', 'screenshot'], ['Kick', 'kick'], ['Ban', 'ban']].forEach(([label, a]) => {
+      const b = document.createElement('button'); b.className = 's'; b.textContent = label; b.style.marginRight = '4px';
+      b.onclick = () => {
+        if (a === 'screenshot') return send(a, p.license, '');
+        if (!confirm(label + ' ' + p.name + '?')) return;
+        send(a, p.license, a === 'ban' ? (prompt('Reason?', 'Cheating') || 'Cheating') : '');
+      };
+      w.appendChild(b);
+    });
+    return row([p.id, p.name, p.license, p.strikes, p.ping, w]);
+  }));
+  fill($('#sh'), ['When', 'Player', 'Reason', ''], (d.shots || []).map(s => {
+    const b = document.createElement('button'); b.className = 's'; b.textContent = 'View'; b.onclick = () => view(s.sid);
+    return row([fmt(s.t), s.player, s.reason, b]);
+  }));
   fill($('#bt'), ['When', 'Player', 'Identifier', 'Reason', ''], d.bans.map(b => {
     const btn = document.createElement('button'); btn.className = 's'; btn.textContent = 'Unban';
     btn.onclick = () => confirm('Unban ' + b.id + '?') && send('unban', b.id);

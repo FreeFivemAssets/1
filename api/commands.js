@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     if (!isAdmin(req)) return res.status(401).json({ error: 'unauthorized' });
     const b = req.body || {};
-    if (!['ban', 'unban', 'kick'].includes(b.action) || !b.id) return res.status(400).json({ error: 'bad request' });
+    if (!['ban', 'unban', 'kick', 'screenshot'].includes(b.action) || !b.id) return res.status(400).json({ error: 'bad request' });
     await redis('RPUSH', 'commands', JSON.stringify({ action: b.action, id: clean(b.id, 80), reason: clean(b.reason) }));
     return res.json({ ok: true });
   }
